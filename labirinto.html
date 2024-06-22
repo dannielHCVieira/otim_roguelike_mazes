@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Labirinto com Pesos e Melhor Caminho</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+    }
+    .cell {
+        width: 20px;
+        height: 20px;
+        border: 1px solid black;
+        display: inline-block;
+        position: relative;
+    }
+    .weight {
+        position: absolute;
+        top: 0;
+        left: 0;
+        padding: 2px;
+        font-size: 10px;
+        background-color: white;
+    }
+    .shortest-path {
+         background-color: blue !important; 
+    }
+</style>
+</head>
+<body>
+<h1>Labirinto com Pesos e Melhor Caminho</h1>
+<div id="maze"></div>
+<button id="findPathButton">Encontrar Melhor Caminho</button>
+<script>
+    function createMaze(rows, cols) {
+        let grid = [];
+        for (let i = 0; i < rows; i++) {
+            let row = [];
+            for (let j = 0; j < cols; j++) {
+                row.push({
+                    visited: false,
+                    topWall: true,
+                    bottomWall: true,
+                    leftWall: true,
+                    rightWall: true,
+                    weight: Math.floor(Math.random() * 10) + 1
+                });
+            }
+            grid.push(row);
+        }
+
+        function recursiveBacktracker(row, col) {
+            grid[row][col].visited = true;
+
+            let directions = ['top', 'right', 'bottom', 'left'];
+            directions = directions.sort(() => Math.random() - 0.5);
+
+            for (let direction of directions) {
+                let newRow = row;
+                let newCol = col;
+                switch (direction) {
+                    case 'top':
+                        newRow--;
+                        break;
+                    case 'right':
+                        newCol++;
+                        break;
+                    case 'bottom':
+                        newRow++;
+                        break;
+                    case 'left':
+                        newCol--;
+                        break;
+                }
+
+                if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
+                    if (direction === 'top') {
+                        grid[row][col].topWall = false;
+                        grid[newRow][newCol].bottomWall = false;
+                    } else if (direction === 'right') {
+                        grid[row][col].rightWall = false;
+                        grid[newRow][newCol].leftWall = false;
+                    } else if (direction === 'bottom') {
+                        grid[row][col].bottomWall = false;
+                        grid[newRow][newCol].topWall = false;
+                    } else if (direction === 'left') {
+                        grid[row][col].leftWall = false;
+                        grid[newRow][newCol].rightWall = false;
+                    }
+
+                    if (!grid[newRow][newCol].visited) {
+                        recursiveBacktracker(newRow, newCol);
+                    }
+                }
+            }
+        }
+
+        let startRow = Math.floor(Math.random() * rows);
+        let startCol = Math.floor(Math.random() * cols);
+        recursiveBacktracker(startRow, startCol);
+
+        return grid;
+    }
+
+    function dijkstra(maze, startRow, startCol) {
+        let rows = maze.length;
+        let cols = maze[0].length;
+
+        let distances = [];
+        let visited = [];
+        let queue = [];
+
+        for (let i = 0; i < rows; i++) {
+            let distRow = [];
+            let visitedRow = [];
+            for (let j = 0; j < cols; j++) {
+                distRow.push(Number.POSITIVE_INFINITY);
+                visitedRow.push(false);
+            }
+            distances.push(distRow);
+            visited.push(visitedRow);
+        }
+
+        distances[startRow][startCol] = 0;
+        queue.push({ row: startRow, col: startCol });
+
+        while (queue.length > 0) {
+            let current = queue.shift();
+            let row = current.row;
+            let col = current.col;
+
+            if (visited[row][col]) continue;
+            visited[row][col] = true;
+
+            let neighbors = [];
+            if (row > 0 && !maze[row][col].topWall) neighbors.push({ row: row - 1, col: col });
+            if (col < cols - 1 && !maze[row][col].rightWall) neighbors.push({ row: row, col: col + 1 });
+            if (row < rows - 1 && !maze[row][col].bottomWall) neighbors.push({ row: row + 1, col: col });
+            if (col > 0 && !maze[row][col].leftWall) neighbors.push({ row: row, col: col - 1 });
+
+            for (let neighbor of neighbors) {
+                let neighborRow = neighbor.row;
+                let neighborCol = neighbor.col;
+                let weight = maze[neighborRow][neighborCol].weight;
+                let newDistance = distances[row][col] + weight;
+
+                if (newDistance < distances[neighborRow][neighborCol]) {
+                    distances[neighborRow][neighborCol] = newDistance;
+                    queue.push({ row: neighborRow, col: neighborCol });
+                }
+            }
+        }
+
+        return distances;
+    }
+   
+    function findShortestPath(distances, startRow, startCol, endRow, endCol) {
+        let path = [];
+        let currentRow = endRow;
+        let currentCol = endCol;
+        while (!(currentRow === startRow && currentCol === startCol)) {
+            path.unshift({ row: currentRow, col: currentCol });
+            let neighbors = [
+                { row: currentRow - 1, col: currentCol },
+                { row: currentRow, col: currentCol + 1 },
+                { row: currentRow + 1, col: currentCol },
+                { row: currentRow, col: currentCol - 1 }
+            ];
+            for (let neighbor of neighbors) {
+                if (neighbor.row >= 0 && neighbor.row < distances.length &&
+                    neighbor.col >= 0 && neighbor.col < distances[0].length &&
+                    distances[neighbor.row][neighbor.col] === distances[currentRow][currentCol] - maze[currentRow][currentCol].weight) {
+                    currentRow = neighbor.row;
+                    currentCol = neighbor.col;
+                    break;
+                }
+            }
+        }
+        path.unshift({ row: startRow, col: startCol });
+        return path;
+    }
+
+    let rows = 3;
+    let cols = 3;
+    let maze = createMaze(rows, cols);
+    let startRow = 0;
+    let startCol = 0;
+    let endRow = rows - 1; // Mova endRow e endCol para fora da função createMaze
+    let endCol = cols - 1;
+    let distances = dijkstra(maze, startRow, startCol);
+    console.log(distances);
+
+    let mazeElement = document.getElementById('maze');
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            let cell = maze[row][col];
+            let cellElement = document.createElement('div');
+            cellElement.classList.add('cell');
+            if (cell.topWall) cellElement.style.borderTop = '1px solid black';
+            if (cell.rightWall) cellElement.style.borderRight = '1px solid black';
+            if (cell.bottomWall) cellElement.style.borderBottom = '1px solid black';
+            if (cell.leftWall) cellElement.style.borderLeft = '1px solid black';
+            cellElement.style.backgroundColor = `rgba(0, 0, 0, ${cell.weight / 10})`;
+
+            let weightElement = document.createElement('div');
+            weightElement.classList.add('weight');
+            weightElement.textContent = cell.weight;
+            cellElement.appendChild(weightElement);
+
+            mazeElement.appendChild(cellElement);
+        }
+        mazeElement.appendChild(document.createElement('br'));
+    }
+
+    let findPathButton = document.getElementById('findPathButton');
+    findPathButton.addEventListener('click', function() {
+        clearPath();
+        let shortestPath = findShortestPath(distances, startRow, startCol, endRow, endCol);
+        highlightPath(shortestPath);
+    });
+
+    function clearPath() {
+        let cells = document.getElementsByClassName('cell');
+        for (let cell of cells) {
+            cell.classList.remove('shortest-path');
+        }
+    }
+
+    function highlightPath(path) {
+        for (let step of path) {
+            let cellElement = mazeElement.children[step.row * cols + step.col];
+            console.log(cellElement);
+            cellElement.classList.add('shortest-path');
+        }
+    }
+</script>
+</body>
+</html>
