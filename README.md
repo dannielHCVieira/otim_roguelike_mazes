@@ -3,3 +3,8 @@
 
 - Main files:
     - labirinto.html: Contains the front-end and the code to the project in JavaScript.
+
+Authors:
+    Danniel Vieira
+    Pedro Henrique
+    Vinicius Alves
