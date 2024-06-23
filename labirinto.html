@@ -3,53 +3,81 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Labirinto com Pesos e Melhor Caminho</title>
+<title>Labirinto com Obstáculos, Itens e Inimigos</title>
 <style>
     body {
         font-family: Arial, sans-serif;
     }
     .cell {
-        width: 20px;
-        height: 20px;
+        width: 43px;
+        height: 83px;
         border: 1px solid black;
         display: inline-block;
         position: relative;
     }
-    .weight {
+    .obstaculos, .itens, .enemies, .peso {
         position: absolute;
-        top: 0;
         left: 0;
         padding: 2px;
-        font-size: 10px;
+        font-size: 12px;
         background-color: white;
     }
+    .obstaculos {
+        top: 0;
+    }
+    .itens {
+        top: 20px;
+    }
+    .enemies {
+        top: 40px;
+    }
+    .peso {
+        top: 60px;
+    }
     .shortest-path {
-         background-color: blue !important; 
+        background-color: blue !important;
     }
 </style>
 </head>
 <body>
-<h1>Labirinto com Pesos e Melhor Caminho</h1>
+<h1>Labirinto com Obstáculos, Itens e Inimigos</h1>
 <div id="maze"></div>
 <button id="findPathButton">Encontrar Melhor Caminho</button>
+<div>
+    <p>Total de Obstáculos: <span id="totalObstaculos">0</span></p>
+    <p>Total de Itens: <span id="totalItens">0</span></p>
+    <p>Total de Inimigos: <span id="totalEnemies">0</span></p>
+    <p>Total de Dificulade: <span id="totalPeso">0</span></p>
+</div>
 <script>
+    // Função para criar o labirinto
     function createMaze(rows, cols) {
         let grid = [];
+        // Criando a grade do labirinto
         for (let i = 0; i < rows; i++) {
             let row = [];
             for (let j = 0; j < cols; j++) {
+                // Determinando valores iniciais de obstáculos, itens e inimigos
+                let enemies = Math.floor(Math.random() * 10) + 1; // inimigos entre 1 e 10
+                let itens = Math.floor(Math.random() * 5);   // itens entre 0 e 4
+                let obstaculos = Math.floor(Math.random() * 10) + 1; // obstáculos entre 1 e 10
+                // Adicionando as propriedades da célula
                 row.push({
                     visited: false,
                     topWall: true,
                     bottomWall: true,
                     leftWall: true,
                     rightWall: true,
-                    weight: Math.floor(Math.random() * 10) + 1
+                    weight: 0,  // Peso será calculado posteriormente
+                    itens: itens,
+                    obstaculos: obstaculos,
+                    enemies: enemies
                 });
             }
             grid.push(row);
         }
 
+        // Função recursiva para gerar o labirinto usando o algoritmo de backtracking
         function recursiveBacktracker(row, col) {
             grid[row][col].visited = true;
 
@@ -96,29 +124,137 @@
             }
         }
 
-        let startRow = Math.floor(Math.random() * rows);
-        let startCol = Math.floor(Math.random() * cols);
+        // Definindo uma entrada e uma saída fixas
+        const startRow = 0;
+        const startCol = 0;
+        const endRow = rows - 1;
+        const endCol = cols - 1;
+
         recursiveBacktracker(startRow, startCol);
 
-        return grid;
+        return { grid, startRow, startCol, endRow, endCol };
     }
 
+    // Função para otimizar os pesos do labirinto usando regressão linear simples
+    function optimizeWeights(maze) {
+        let X = [];
+        let y = [];
+
+        // Coletando dados para a regressão linear
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[0].length; col++) {
+                let cell = maze[row][col];
+                X.push([cell.enemies, cell.itens, cell.obstaculos]);
+                y.push(cell.enemies + cell.itens + cell.obstaculos); // Peso inicial como a soma
+            }
+        }
+
+        // Normalizando os dados
+        let meanX = [0, 0, 0];
+        let stdX = [0, 0, 0];
+        for (let i = 0; i < X.length; i++) {
+            for (let j = 0; j < 3; j++) {
+                meanX[j] += X[i][j];
+            }
+        }
+        for (let j = 0; j < 3; j++) {
+            meanX[j] /= X.length;
+        }
+        for (let i = 0; i < X.length; i++) {
+            for (let j = 0; j < 3; j++) {
+                stdX[j] += Math.pow(X[i][j] - meanX[j], 2);
+            }
+        }
+        for (let j = 0; j < 3; j++) {
+            stdX[j] = Math.sqrt(stdX[j] / X.length);
+        }
+        for (let i = 0; i < X.length; i++) {
+            for (let j = 0; j < 3; j++) {
+                X[i][j] = (X[i][j] - meanX[j]) / stdX[j];
+            }
+        }
+
+        // Inicializando os coeficientes
+        let theta = [0, 0, 0, 0]; // Inclui o termo de interceptação
+
+
+        // Função de gradiente
+        function gradientDescent(X, y, theta, alpha, iterations) {
+            let m = X.length;
+            for (let it = 0; it < iterations; it++) {
+                let tempTheta = theta.slice();
+                for (let j = 0; j < theta.length; j++) {
+                    let sum = 0;
+                    for (let i = 0; i < m; i++) {
+                        let prediction = tempTheta[0];
+                        for (let k = 0; k < 3; k++) {
+                            prediction += tempTheta[k + 1] * X[i][k];
+                        }
+                        if (j == 0) {
+                            sum += prediction - y[i];
+                        } else {
+                            sum += (prediction - y[i]) * X[i][j - 1];
+                        }
+                    }
+                    theta[j] = tempTheta[j] - (alpha / m) * sum;
+                }
+            }
+            return theta;
+        }
+
+        // Treinando o modelo
+        let alpha = 0.01;
+        let iterations = 1000;
+        theta = gradientDescent(X, y, theta, alpha, iterations);
+
+        // Atualizando os pesos no labirinto e ajustando para máximo 10
+        let maxWeight = 0;
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[0].length; col++) {
+                let cell = maze[row][col];
+                let normalizedValues = [
+                    (cell.enemies - meanX[0]) / stdX[0],
+                    (cell.itens - meanX[1]) / stdX[1],
+                    (cell.obstaculos - meanX[2]) / stdX[2]
+                ];
+                let weight = theta[0];
+                for (let j = 0; j < 3; j++) {
+                    weight += theta[j + 1] * normalizedValues[j];
+                }
+                cell.weight = Math.max(weight, 0); // Assegurando que o peso seja não negativo
+                maxWeight = Math.max(maxWeight, cell.weight);
+            }
+        }
+
+        // Ajustando todos os pesos para que o máximo seja 10
+        for (let row = 0; row < maze.length; row++) {
+            for (let col = 0; col < maze[0].length; col++) {
+                maze[row][col].weight = (maze[row][col].weight / maxWeight) * 10;
+            }
+        }
+    }
+
+    // Função de Dijkstra para encontrar a menor distância no labirinto
     function dijkstra(maze, startRow, startCol) {
         let rows = maze.length;
         let cols = maze[0].length;
 
         let distances = [];
+        let previous = [];
         let visited = [];
         let queue = [];
 
         for (let i = 0; i < rows; i++) {
             let distRow = [];
+            let prevRow = [];
             let visitedRow = [];
             for (let j = 0; j < cols; j++) {
                 distRow.push(Number.POSITIVE_INFINITY);
+                prevRow.push(null);
                 visitedRow.push(false);
             }
             distances.push(distRow);
+            previous.push(prevRow);
             visited.push(visitedRow);
         }
 
@@ -147,50 +283,41 @@
 
                 if (newDistance < distances[neighborRow][neighborCol]) {
                     distances[neighborRow][neighborCol] = newDistance;
+                    previous[neighborRow][neighborCol] = { row, col };
                     queue.push({ row: neighborRow, col: neighborCol });
                 }
             }
         }
 
-        return distances;
+        return { distances, previous };
     }
-   
-    function findShortestPath(distances, startRow, startCol, endRow, endCol) {
+
+    // Função para encontrar o caminho mais curto
+    function findShortestPath(previous, startRow, startCol, endRow, endCol) {
         let path = [];
         let currentRow = endRow;
         let currentCol = endCol;
-        while (!(currentRow === startRow && currentCol === startCol)) {
+        while (currentRow !== startRow || currentCol !== startCol) {
             path.unshift({ row: currentRow, col: currentCol });
-            let neighbors = [
-                { row: currentRow - 1, col: currentCol },
-                { row: currentRow, col: currentCol + 1 },
-                { row: currentRow + 1, col: currentCol },
-                { row: currentRow, col: currentCol - 1 }
-            ];
-            for (let neighbor of neighbors) {
-                if (neighbor.row >= 0 && neighbor.row < distances.length &&
-                    neighbor.col >= 0 && neighbor.col < distances[0].length &&
-                    distances[neighbor.row][neighbor.col] === distances[currentRow][currentCol] - maze[currentRow][currentCol].weight) {
-                    currentRow = neighbor.row;
-                    currentCol = neighbor.col;
-                    break;
-                }
-            }
+            let prev = previous[currentRow][currentCol];
+            currentRow = prev.row;
+            currentCol = prev.col;
         }
         path.unshift({ row: startRow, col: startCol });
         return path;
     }
 
-    let rows = 3;
-    let cols = 3;
-    let maze = createMaze(rows, cols);
-    let startRow = 0;
-    let startCol = 0;
-    let endRow = rows - 1; // Mova endRow e endCol para fora da função createMaze
-    let endCol = cols - 1;
-    let distances = dijkstra(maze, startRow, startCol);
+    // Definindo as dimensões do labirinto
+    let rows = 20;
+    let cols = 20;
+    // Criando e otimizando o labirinto
+    let { grid: maze, startRow, startCol, endRow, endCol } = createMaze(rows, cols);
+    optimizeWeights(maze);
+    // Calculando as distâncias usando Dijkstra
+    let { distances, previous } = dijkstra(maze, startRow, startCol);
     console.log(distances);
 
+    // Renderizando o labirinto no HTML
     let mazeElement = document.getElementById('maze');
     for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
@@ -203,23 +330,39 @@
             if (cell.leftWall) cellElement.style.borderLeft = '1px solid black';
             cellElement.style.backgroundColor = `rgba(0, 0, 0, ${cell.weight / 10})`;
 
-            let weightElement = document.createElement('div');
-            weightElement.classList.add('weight');
-            weightElement.textContent = cell.weight;
-            cellElement.appendChild(weightElement);
+            let obstaculosElement = document.createElement('div');
+            obstaculosElement.classList.add('obstaculos');
+            obstaculosElement.textContent = 'D: ' + cell.obstaculos;
+            cellElement.appendChild(obstaculosElement);
 
+            let itensElement = document.createElement('div');
+            itensElement.classList.add('itens');
+            itensElement.textContent = 'I: ' + cell.itens;
+            cellElement.appendChild(itensElement);
+
+            let enemiesElement = document.createElement('div');
+            enemiesElement.classList.add('enemies');
+            enemiesElement.textContent = 'E: ' + cell.enemies;
+            cellElement.appendChild(enemiesElement);
+
+            let PesoElement = document.createElement('div');
+            PesoElement.classList.add('peso');
+            PesoElement.textContent = 'P: ' + cell.weight.toFixed(2);
+            cellElement.appendChild(PesoElement);
             mazeElement.appendChild(cellElement);
         }
         mazeElement.appendChild(document.createElement('br'));
     }
 
+    // Configurando o botão para encontrar o caminho mais curto
     let findPathButton = document.getElementById('findPathButton');
     findPathButton.addEventListener('click', function() {
         clearPath();
-        let shortestPath = findShortestPath(distances, startRow, startCol, endRow, endCol);
+        let shortestPath = findShortestPath(previous, startRow, startCol, endRow, endCol);
         highlightPath(shortestPath);
     });
 
+    // Função para limpar o caminho anterior
     function clearPath() {
         let cells = document.getElementsByClassName('cell');
         for (let cell of cells) {
@@ -227,12 +370,27 @@
         }
     }
 
+    // Função para destacar o caminho mais curto e calcular totais
     function highlightPath(path) {
+        let totalObstaculos = 0;
+        let totalItens = 0;
+        let totalEnemies = 0;
+        let totalPeso =0;
         for (let step of path) {
             let cellElement = mazeElement.children[step.row * cols + step.col];
-            console.log(cellElement);
             cellElement.classList.add('shortest-path');
+
+            let cell = maze[step.row][step.col];
+            totalObstaculos += cell.obstaculos;
+            totalItens += cell.itens;
+            totalEnemies += cell.enemies;
+            totalPeso += cell.weight
         }
+
+        document.getElementById('totalObstaculos').textContent = totalObstaculos;
+        document.getElementById('totalItens').textContent = totalItens;
+        document.getElementById('totalEnemies').textContent = totalEnemies;
+        document.getElementById('totalPeso').textContent = totalPeso.toFixed(2);
     }
 </script>
 </body>
